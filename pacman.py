@@ -107,8 +107,13 @@ def world():
                 path.dot(2, "white")
 
 
+ghost_update_delay = 2  # Delay en ciclos (10 ciclos son aproximadamente 1 segundo)
+ghost_cycle_counter = 0  # Contador para actualizar la dirección de los fantasmas
+
+
 def move():
     """Move pacman and all ghosts."""
+    global ghost_cycle_counter
     writer.undo()
     writer.write(state["score"])
 
@@ -130,26 +135,63 @@ def move():
     goto(pacman.x + 10, pacman.y + 10)
     dot(20, "yellow")
 
+    # Mover a los fantasmas
     for point, course in ghosts:
+        # Solo recalcular la dirección cada 'ghost_update_delay' ciclos
+        if ghost_cycle_counter == 0:
+            # Calcula la distancia entre el fantasma y Pac-Man
+            distance_to_pacman = abs(pacman - point)
+
+            if distance_to_pacman < 100:  # Si el fantasma está cerca de Pac-Man
+                # Crear una lista de posibles direcciones
+                options = [
+                    vector(5, 0),  # Derecha
+                    vector(-5, 0),  # Izquierda
+                    vector(0, 5),  # Arriba
+                    vector(0, -5),  # Abajo
+                ]
+
+                # Filtrar solo las direcciones válidas
+                valid_options = [option for option in options if valid(point + option)]
+
+                if valid_options:
+                    # Escoge la dirección que más acerque al fantasma a Pac-Man
+                    best_direction = min(
+                        valid_options, key=lambda option: abs((point + option) - pacman)
+                    )
+                    course.x = best_direction.x
+                    course.y = best_direction.y
+
+        # Después de haber calculado la dirección (o si no es el momento de recalcular), el fantasma sigue moviéndose
         if valid(point + course):
             point.move(course)
         else:
+            # Si choca con una pared, seleccionamos una dirección al azar
             options = [
                 vector(5, 0),
                 vector(-5, 0),
                 vector(0, 5),
                 vector(0, -5),
             ]
-            plan = choice(options)
-            course.x = plan.x
-            course.y = plan.y
+            valid_options = [option for option in options if valid(point + option)]
 
+            if valid_options:
+                plan = choice(valid_options)
+                course.x = plan.x
+                course.y = plan.y
+
+        # Mover el fantasma y dibujar
+        point.move(course)
         up()
         goto(point.x + 10, point.y + 10)
         dot(20, "red")
 
+    # Actualizar el contador de ciclos
+    ghost_cycle_counter = (ghost_cycle_counter + 1) % ghost_update_delay
+
     update()
 
+    # Comprobar si un fantasma atrapó a Pac-Man
     for point, course in ghosts:
         if abs(pacman - point) < 20:
             return
